@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>打卡工具 - 习惯养成</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 导航栏 -->
+  <nav class="navbar">
+    <div class="nav-brand" data-navigate="dashboard">🏠 打卡工具</div>
+    <div class="nav-links">
+      <button class="nav-btn active" data-navigate="dashboard">仪表盘</button>
+      <button class="nav-btn" data-navigate="cards">卡牌图鉴</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <!-- 仪表盘 -->
+    <section id="view-dashboard" class="view active">
+      <div class="dashboard-header">
+        <h1>我的目标</h1>
+        <div class="header-actions">
+          <button class="btn btn-sm" id="btn-export">导出数据</button>
+          <label class="btn btn-sm" id="btn-import-label">导入数据
+            <input type="file" id="btn-import" accept=".json" style="display:none;">
+          </label>
+          <button class="btn btn-primary" id="btn-new-goal">+ 新建目标</button>
+        </div>
+      </div>
+      <div class="dashboard-stats">
+        <div class="stat-card glass">
+          <div id="overall-chart" class="donut-container"></div>
+          <div class="stat-text">
+            <span class="stat-label">整体完成率</span>
+            <span class="stat-value" id="overall-rate">0%</span>
+          </div>
+        </div>
+      </div>
+      <div class="goals-list" id="goals-list"></div>
+    </section>
+
+    <!-- 目标详情 -->
+    <section id="view-detail" class="view">
+      <button class="btn-back" data-navigate="dashboard">&larr; 返回</button>
+      <div class="detail-header">
+        <h1 id="detail-name"></h1>
+        <div class="detail-actions">
+          <button class="btn btn-sm" id="btn-edit-goal">编辑</button>
+          <button class="btn btn-sm btn-danger" id="btn-delete-goal">删除</button>
+        </div>
+      </div>
+      <div class="detail-progress glass" id="detail-progress-container"></div>
+      <div class="detail-reward glass" id="detail-reward"></div>
+      <!-- 次数打卡 -->
+      <div class="checkin-section" id="checkin-count" style="display:none;">
+        <button class="btn btn-checkin" id="btn-checkin-count">打卡 +1</button>
+      </div>
+      <!-- 时长打卡 -->
+      <div class="checkin-section" id="checkin-time" style="display:none;">
+        <div class="timer-display" id="timer-display">00:00:00</div>
+        <div class="timer-controls">
+          <button class="btn btn-primary" id="btn-timer-start">开始</button>
+          <button class="btn" id="btn-timer-pause" disabled>暂停</button>
+          <button class="btn btn-danger" id="btn-timer-stop" disabled>停止并记录</button>
+        </div>
+      </div>
+      <div class="history-section">
+        <h3>打卡记录</h3>
+        <div class="history-list" id="history-list"></div>
+      </div>
+    </section>
+
+    <!-- 新建/编辑目标 -->
+    <section id="view-form" class="view">
+      <button class="btn-back" data-navigate="dashboard">&larr; 返回</button>
+      <h1 id="form-title">新建目标</h1>
+      <form class="goal-form glass" id="goal-form">
+        <div class="form-group">
+          <label for="goal-name">目标名称</label>
+          <input type="text" id="goal-name" placeholder="例如：阅读、跑步" required>
+        </div>
+        <div class="form-group">
+          <label for="goal-type">打卡类型</label>
+          <select id="goal-type">
+            <option value="count">次数打卡</option>
+            <option value="time">时长打卡（分钟）</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="goal-target">目标值 <span id="target-unit">（次）</span></label>
+          <input type="number" id="goal-target" min="1" value="30" required>
+        </div>
+        <div class="form-group">
+          <label for="goal-reward">自设奖励</label>
+          <input type="text" id="goal-reward" placeholder="例如：买一杯奶茶">
+        </div>
+        <input type="hidden" id="goal-edit-id" value="">
+        <button type="submit" class="btn btn-primary btn-block">保存</button>
+      </form>
+    </section>
+
+    <!-- 卡牌图鉴 -->
+    <section id="view-cards" class="view">
+      <h1>城市卡牌图鉴</h1>
+      <p class="cards-subtitle">完成目标即可随机获得全球城市卡牌</p>
+      <div class="cards-grid" id="cards-grid"></div>
+    </section>
+  </main>
+
+  <!-- 卡牌揭晓弹窗 -->
+  <div class="modal-overlay" id="modal-card-reveal" style="display:none;">
+    <div class="modal-content">
+      <div class="celebration-text">
+        <h2>目标达成！</h2>
+        <p id="reveal-goal-name"></p>
+      </div>
+      <div class="card-flip-container" id="card-flip-container">
+        <div class="card-flip">
+          <div class="card-face card-back">
+            <div class="card-back-design">?</div>
+          </div>
+          <div class="card-face card-front" id="card-front"></div>
+        </div>
+      </div>
+      <p class="reveal-hint" id="reveal-hint">点击卡牌翻转</p>
+      <div class="reward-reminder" id="reward-reminder" style="display:none;"></div>
+      <button class="btn btn-primary" id="btn-close-reveal" style="display:none;">收下卡牌</button>
+    </div>
+  </div>
+
+  <!-- 五彩纸屑画布 -->
+  <canvas id="confetti-canvas"></canvas>
+
+  <script src="cards.js"></script>
+  <script src="charts.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
