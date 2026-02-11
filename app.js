@@ -11,14 +11,18 @@
       goals: [],
       checkins: [],
       cards: [],
-      timerState: { goalId: null, startedAt: null, accumulatedMs: 0, isRunning: false }
+      timerState: { goalId: null, startedAt: null, accumulatedMs: 0, isRunning: false },
+      claimedRewards: []
     };
   }
 
   function load() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : defaultData();
+      if (!raw) return defaultData();
+      const d = JSON.parse(raw);
+      if (!d.claimedRewards) d.claimedRewards = [];
+      return d;
     } catch { return defaultData(); }
   }
 
@@ -38,6 +42,8 @@
       b.classList.toggle('active', b.dataset.navigate === viewName);
     });
     if (viewName === 'dashboard') renderDashboard();
+    if (viewName === 'calendar') renderCalendar();
+    if (viewName === 'rewards') renderRewards();
     if (viewName === 'cards') Cards.renderCollection(data.cards, document.getElementById('cards-grid'));
     if (viewName === 'detail') renderDetail();
   }
@@ -449,6 +455,135 @@
     flash.className = 'screen-flash';
     document.body.appendChild(flash);
     setTimeout(() => flash.remove(), 500);
+  }
+
+  /* ===== 日历 ===== */
+  let calYear, calMonth, calSelectedDate;
+  (function initCalDate() {
+    const now = new Date();
+    calYear = now.getFullYear();
+    calMonth = now.getMonth();
+    calSelectedDate = null;
+  })();
+
+  document.getElementById('cal-prev').addEventListener('click', () => {
+    calMonth--;
+    if (calMonth < 0) { calMonth = 11; calYear--; }
+    calSelectedDate = null;
+    renderCalendar();
+  });
+  document.getElementById('cal-next').addEventListener('click', () => {
+    calMonth++;
+    if (calMonth > 11) { calMonth = 0; calYear++; }
+    calSelectedDate = null;
+    renderCalendar();
+  });
+
+  function renderCalendar() {
+    document.getElementById('cal-title').textContent = `${calYear}年${calMonth + 1}月`;
+    const grid = document.getElementById('cal-grid');
+    const firstDay = new Date(calYear, calMonth, 1).getDay();
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const today = new Date().toISOString().slice(0, 10);
+
+    // 统计本月每天的打卡次数
+    const monthPrefix = `${calYear}-${String(calMonth + 1).padStart(2, '0')}`;
+    const dayMap = {};
+    data.checkins.forEach(c => {
+      if (c.date.startsWith(monthPrefix)) {
+        dayMap[c.date] = (dayMap[c.date] || 0) + 1;
+      }
+    });
+
+    let html = '';
+    for (let i = 0; i < firstDay; i++) {
+      html += '<div class="cal-day empty"></div>';
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const isToday = dateStr === today;
+      const isSelected = dateStr === calSelectedDate;
+      const count = dayMap[dateStr] || 0;
+      const dots = count > 0
+        ? `<div class="cal-dots">${'<span class="cal-dot"></span>'.repeat(Math.min(count, 3))}</div>`
+        : '';
+      html += `<div class="cal-day${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}" data-date="${dateStr}">${d}${dots}</div>`;
+    }
+    grid.innerHTML = html;
+
+    grid.querySelectorAll('.cal-day:not(.empty)').forEach(el => {
+      el.addEventListener('click', () => {
+        calSelectedDate = el.dataset.date;
+        renderCalendar();
+        renderCalendarDetail(el.dataset.date);
+      });
+    });
+
+    if (calSelectedDate) {
+      renderCalendarDetail(calSelectedDate);
+    } else {
+      document.getElementById('cal-detail').innerHTML =
+        '<p class="empty-state" style="padding:16px;">点击日期查看打卡记录</p>';
+    }
+  }
+
+  function renderCalendarDetail(dateStr) {
+    const detail = document.getElementById('cal-detail');
+    const records = data.checkins.filter(c => c.date === dateStr);
+    if (records.length === 0) {
+      detail.innerHTML = `<h3>${dateStr}</h3><p style="color:var(--text-dim);font-size:.85rem;">当天无打卡记录</p>`;
+      return;
+    }
+    const items = records.map(c => {
+      const goal = data.goals.find(g => g.id === c.goalId);
+      const name = goal ? goal.name : '已删除目标';
+      const unit = goal && goal.type === 'time' ? ' 分钟' : ' 次';
+      return `<div class="cal-record"><span>${name}</span><span>+${c.value}${unit}</span></div>`;
+    }).join('');
+    detail.innerHTML = `<h3>${dateStr}</h3>${items}`;
+  }
+
+  /* ===== 奖励墙 ===== */
+  function renderRewards() {
+    const list = document.getElementById('rewards-list');
+    // 收集所有已完成且有奖励的目标
+    const rewards = data.goals
+      .filter(g => g.completed && g.reward)
+      .map(g => ({
+        goalId: g.id,
+        goalName: g.name,
+        reward: g.reward,
+        completedAt: g.completedAt,
+        claimed: data.claimedRewards.includes(g.id)
+      }));
+    if (rewards.length === 0) {
+      list.innerHTML = '<div class="empty-state"><p>还没有获得奖励，完成目标即可解锁</p></div>';
+      return;
+    }
+    // 未兑现排前面
+    rewards.sort((a, b) => a.claimed - b.claimed);
+    list.innerHTML = rewards.map(r => `
+      <div class="reward-item${r.claimed ? ' claimed' : ''}" data-goal-id="${r.goalId}">
+        <div class="reward-check">${r.claimed ? '✓' : ''}</div>
+        <div class="reward-info">
+          <span class="reward-name">🎁 ${r.reward}</span>
+          <span class="reward-goal">来自目标「${r.goalName}」</span>
+        </div>
+      </div>
+    `).join('');
+    list.querySelectorAll('.reward-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const gid = el.dataset.goalId;
+        const idx = data.claimedRewards.indexOf(gid);
+        if (idx === -1) {
+          data.claimedRewards.push(gid);
+        } else {
+          data.claimedRewards.splice(idx, 1);
+        }
+        save(data);
+        renderRewards();
+      });
+    });
   }
 
   /* ===== 导出数据 ===== */
