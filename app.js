@@ -12,7 +12,16 @@
       checkins: [],
       cards: [],
       timerState: { goalId: null, startedAt: null, accumulatedMs: 0, isRunning: false },
-      claimedRewards: []
+      claimedRewards: [],
+      // 新增数据
+      points: 0,
+      shopItems: [
+        { id: 'item_1', name: '看一场电影', cost: 50, icon: '🎬' },
+        { id: 'item_2', name: '喝一杯奶茶', cost: 30, icon: '🧋' },
+        { id: 'item_3', name: '买一本新书', cost: 80, icon: '📚' }
+      ],
+      purchasedItems: [],
+      pointLogs: []
     };
   }
 
@@ -21,7 +30,11 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return defaultData();
       const d = JSON.parse(raw);
-      if (!d.claimedRewards) d.claimedRewards = [];
+      if (typeof d.points !== 'number') d.points = 0;
+      if (!d.shopItems) d.shopItems = defaultData().shopItems;
+      if (!d.purchasedItems) d.purchasedItems = [];
+      if (!d.pointLogs) d.pointLogs = [];
+      // 移除 old claimedRewards check
       return d;
     } catch { return defaultData(); }
   }
@@ -43,9 +56,10 @@
     });
     if (viewName === 'dashboard') renderDashboard();
     if (viewName === 'calendar') renderCalendar();
-    if (viewName === 'rewards') renderRewards();
+
     if (viewName === 'cards') Cards.renderCollection(data.cards, document.getElementById('cards-grid'));
     if (viewName === 'detail') renderDetail();
+    if (viewName === 'shop') renderShop();
   }
 
   document.querySelectorAll('[data-navigate]').forEach(el => {
@@ -102,7 +116,10 @@
       `<div style="margin-bottom:4px;font-size:.9rem;">进度：${cur} / ${goal.target} ${unit}</div>`
       + Charts.createProgressBar(cur, goal.target);
     document.getElementById('detail-reward').innerHTML =
-      goal.reward ? `🎁 奖励：${goal.reward}` : '<span style="color:var(--text-dim)">未设置奖励</span>';
+      `🎁 完成可得：<span style="color:var(--primary-light);font-weight:bold;">${goal.rewardPoints || 100}</span> 积分`;
+
+    // 清空备注
+    document.getElementById('checkin-note-input').value = '';
 
     // 显示对应打卡区域
     const countSection = document.getElementById('checkin-count');
@@ -125,7 +142,16 @@
     } else {
       historyEl.innerHTML = checkins.map(c => {
         const val = goal.type === 'time' ? c.value + ' 分钟' : '+' + c.value;
-        return `<div class="history-item"><span>${c.date}</span><span>${val}</span></div>`;
+        const noteHtml = c.note ? `<div class="history-note">${c.note}</div>` : '';
+        return `<div class="history-item">
+          <div>
+            <div style="display:flex;justify-content:space-between;">
+              <span>${c.date}</span>
+              <span>${val}</span>
+            </div>
+            ${noteHtml}
+          </div>
+        </div>`;
       }).join('');
     }
   }
@@ -139,8 +165,11 @@
       goalId: goal.id,
       date: today,
       value: 1,
+      note: document.getElementById('checkin-note-input').value.trim(),
       timestamp: new Date().toISOString()
     });
+    // 增加积分
+    addPoints(10, '日常打卡');
     // +1 浮动动画
     const btn = e.currentTarget;
     btn.classList.remove('ripple');
@@ -242,10 +271,14 @@
         id: 'c_' + Date.now(),
         goalId: currentGoalId,
         date: today,
+        date: today,
         value: minutes,
+        note: document.getElementById('checkin-note-input').value.trim() + ' (时长打卡)', // 自动追加标记
         timestamp: new Date().toISOString()
       });
       if (goal) checkCompletion(goal);
+      // 增加积分
+      addPoints(10, '时长打卡');
     }
     ts.goalId = null;
     ts.startedAt = null;
@@ -274,11 +307,14 @@
         obtainedAt: new Date().toISOString(),
         goalId: goal.id
       });
+      // 目标达成积分 (使用自定义积分，默认为 100)
+      addPoints(goal.rewardPoints || 100, `达成目标「${goal.name}」`);
       save(data);
       // 目标达成：纸屑
       launchConfetti();
+      launchConfetti();
       setTimeout(() => {
-        Cards.showReveal(card, goal.name, goal.reward, null, function onFlip() {
+        Cards.showReveal(card, goal.name, `${goal.rewardPoints || 100} 积分`, null, function onFlip() {
           // 卡牌翻转时：按稀有度播放效果
           if (card.rarity === 'legendary') {
             screenFlash();
@@ -306,7 +342,7 @@
     document.getElementById('goal-name').value = goal.name;
     document.getElementById('goal-type').value = goal.type;
     document.getElementById('goal-target').value = goal.target;
-    document.getElementById('goal-reward').value = goal.reward || '';
+    document.getElementById('goal-reward-points').value = goal.rewardPoints || 100;
     document.getElementById('goal-edit-id').value = goal.id;
     document.getElementById('target-unit').textContent = goal.type === 'time' ? '（分钟）' : '（次）';
     navigate('form');
@@ -322,7 +358,7 @@
     const name = document.getElementById('goal-name').value.trim();
     const type = document.getElementById('goal-type').value;
     const target = parseInt(document.getElementById('goal-target').value, 10);
-    const reward = document.getElementById('goal-reward').value.trim();
+    const rewardPoints = parseInt(document.getElementById('goal-reward-points').value, 10) || 100;
     if (!name || !target) return;
 
     if (editId) {
@@ -331,12 +367,12 @@
         goal.name = name;
         goal.type = type;
         goal.target = target;
-        goal.reward = reward;
+        goal.rewardPoints = rewardPoints;
       }
     } else {
       data.goals.push({
         id: 'g_' + Date.now(),
-        name, type, target, reward,
+        name, type, target, rewardPoints,
         createdAt: new Date().toISOString(),
         completed: false,
         completedAt: null
@@ -365,7 +401,7 @@
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     const pieces = [];
-    const colors = ['#6c5ce7','#a29bfe','#fd79a8','#ffeaa7','#55efc4','#74b9ff','#e17055'];
+    const colors = ['#6c5ce7', '#a29bfe', '#fd79a8', '#ffeaa7', '#55efc4', '#74b9ff', '#e17055'];
     for (let i = 0; i < 120; i++) {
       pieces.push({
         x: Math.random() * canvas.width,
@@ -407,7 +443,7 @@
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     const sparks = [];
-    const colors = ['#FFD700','#FF6B6B','#a29bfe','#55efc4','#fd79a8','#74b9ff','#fff'];
+    const colors = ['#FFD700', '#FF6B6B', '#a29bfe', '#55efc4', '#fd79a8', '#74b9ff', '#fff'];
     // 生成 3 个爆炸点
     for (let b = 0; b < 3; b++) {
       const cx = canvas.width * (0.25 + Math.random() * 0.5);
@@ -486,14 +522,34 @@
     const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
     const today = new Date().toISOString().slice(0, 10);
 
-    // 统计本月每天的打卡次数
+    // 统计本月每天的打卡次数 & 积分变动
     const monthPrefix = `${calYear}-${String(calMonth + 1).padStart(2, '0')}`;
-    const dayMap = {};
+    const dayCheckinMap = {};
     data.checkins.forEach(c => {
       if (c.date.startsWith(monthPrefix)) {
-        dayMap[c.date] = (dayMap[c.date] || 0) + 1;
+        dayCheckinMap[c.date] = (dayCheckinMap[c.date] || 0) + 1;
       }
     });
+
+    // 统计积分
+    const monthLogs = data.pointLogs.filter(l => l.time.startsWith(monthPrefix));
+    let totalInc = 0;
+    let totalExp = 0;
+    const dayNetMap = {}; // date -> netPoints
+
+    monthLogs.forEach(l => {
+      const date = l.time.slice(0, 10);
+      if (l.amount > 0) totalInc += l.amount;
+      else totalExp += Math.abs(l.amount);
+
+      dayNetMap[date] = (dayNetMap[date] || 0) + l.amount;
+    });
+
+    // 更新概要
+    document.getElementById('cal-summary').style.display = 'flex';
+    document.getElementById('cal-inc').textContent = '+' + totalInc;
+    document.getElementById('cal-exp').textContent = '-' + totalExp;
+    document.getElementById('cal-bal').textContent = totalInc - totalExp;
 
     let html = '';
     for (let i = 0; i < firstDay; i++) {
@@ -503,11 +559,33 @@
       const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const isToday = dateStr === today;
       const isSelected = dateStr === calSelectedDate;
-      const count = dayMap[dateStr] || 0;
-      const dots = count > 0
-        ? `<div class="cal-dots">${'<span class="cal-dot"></span>'.repeat(Math.min(count, 3))}</div>`
+      const count = dayCheckinMap[dateStr] || 0;
+
+      const net = dayNetMap[dateStr] || 0;
+      let netHtml = '';
+      let dayClass = '';
+
+      if (net > 0) {
+        netHtml = `<div class="cal-net text-income">+${net}</div>`;
+        dayClass = ' bg-income';
+      } else if (net < 0) {
+        netHtml = `<div class="cal-net text-expense">${net}</div>`;
+        dayClass = ' bg-expense';
+      } else if (count > 0) {
+        netHtml = `<div class="cal-net" style="color:var(--text-dim)">+0</div>`;
+        dayClass = ' bg-neutral';
+      } else {
+        netHtml = `<div class="cal-net" style="height:14px"></div>`; // 占位
+      }
+
+      const dots = count > 0 // 仍然保留红点逻辑，或者可以简化
+        ? `<div class="cal-dots" style="margin-top:2px">${'<span class="cal-dot"></span>'.repeat(Math.min(count, 3))}</div>`
         : '';
-      html += `<div class="cal-day${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}" data-date="${dateStr}">${d}${dots}</div>`;
+
+      html += `<div class="cal-day${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}${dayClass} has-net" data-date="${dateStr}">
+        <span>${d}</span>
+        ${netHtml}
+      </div>`;
     }
     grid.innerHTML = html;
 
@@ -515,6 +593,7 @@
       el.addEventListener('click', () => {
         calSelectedDate = el.dataset.date;
         renderCalendar();
+        // renderCalendarDetail(el.dataset.date); // 重新renderCalendar会刷新整个grid，这里不需要重复绑定，但逻辑上是点选后刷新试图
         renderCalendarDetail(el.dataset.date);
       });
     });
@@ -523,7 +602,7 @@
       renderCalendarDetail(calSelectedDate);
     } else {
       document.getElementById('cal-detail').innerHTML =
-        '<p class="empty-state" style="padding:16px;">点击日期查看打卡记录</p>';
+        '<p class="empty-state" style="padding:16px;">点击日期查看账单明细</p>';
     }
   }
 
@@ -540,51 +619,26 @@
       const unit = goal && goal.type === 'time' ? ' 分钟' : ' 次';
       return `<div class="cal-record"><span>${name}</span><span>+${c.value}${unit}</span></div>`;
     }).join('');
-    detail.innerHTML = `<h3>${dateStr}</h3>${items}`;
+    // 2. 积分变动
+    const dayLogs = data.pointLogs.filter(l => l.time.startsWith(dateStr));
+    let logHtml = '';
+    if (dayLogs.length > 0) {
+      logHtml = '<h4 style="margin:16px 0 8px;font-size:0.9rem;color:var(--text-dim);border-top:1px dashed var(--glass-border);padding-top:12px;">积分账单</h4>' +
+        dayLogs.map(l => {
+          const isPos = l.amount > 0;
+          return `<div class="cal-record">
+            <span>${l.reason}</span>
+            <span style="font-weight:bold;color:${isPos ? '#4aa3df' : '#ff6b6b'}">
+              ${isPos ? '+' : ''}${l.amount} 积分
+            </span>
+          </div>`;
+        }).join('');
+    }
+
+    detail.innerHTML = `<h3>${dateStr}</h3>${items}${logHtml}`;
   }
 
-  /* ===== 奖励墙 ===== */
-  function renderRewards() {
-    const list = document.getElementById('rewards-list');
-    // 收集所有已完成且有奖励的目标
-    const rewards = data.goals
-      .filter(g => g.completed && g.reward)
-      .map(g => ({
-        goalId: g.id,
-        goalName: g.name,
-        reward: g.reward,
-        completedAt: g.completedAt,
-        claimed: data.claimedRewards.includes(g.id)
-      }));
-    if (rewards.length === 0) {
-      list.innerHTML = '<div class="empty-state"><p>还没有获得奖励，完成目标即可解锁</p></div>';
-      return;
-    }
-    // 未兑现排前面
-    rewards.sort((a, b) => a.claimed - b.claimed);
-    list.innerHTML = rewards.map(r => `
-      <div class="reward-item${r.claimed ? ' claimed' : ''}" data-goal-id="${r.goalId}">
-        <div class="reward-check">${r.claimed ? '✓' : ''}</div>
-        <div class="reward-info">
-          <span class="reward-name">🎁 ${r.reward}</span>
-          <span class="reward-goal">来自目标「${r.goalName}」</span>
-        </div>
-      </div>
-    `).join('');
-    list.querySelectorAll('.reward-item').forEach(el => {
-      el.addEventListener('click', () => {
-        const gid = el.dataset.goalId;
-        const idx = data.claimedRewards.indexOf(gid);
-        if (idx === -1) {
-          data.claimedRewards.push(gid);
-        } else {
-          data.claimedRewards.splice(idx, 1);
-        }
-        save(data);
-        renderRewards();
-      });
-    });
-  }
+
 
   /* ===== 导出数据 ===== */
   document.getElementById('btn-export').addEventListener('click', () => {
@@ -619,6 +673,144 @@
     };
     reader.readAsText(file);
     e.target.value = '';
+  });
+
+  /* ===== 愿望商城逻辑 ===== */
+
+  function addPoints(amount, reason = '获得积分') {
+    data.points += amount;
+    data.pointLogs.unshift({
+      id: 'log_' + Date.now(),
+      amount,
+      reason,
+      time: new Date().toISOString()
+    });
+    save(data);
+    // 这里可以加一个全局提示
+    console.log(`[${reason}] ${amount > 0 ? '+' : ''}${amount} 积分，当前: ${data.points}`);
+  }
+
+  function renderPointsHistory() {
+    const list = document.getElementById('points-history-list');
+    if (data.pointLogs.length === 0) {
+      list.innerHTML = '<div class="empty-state">还没有积分记录，快去完成目标吧！</div>';
+      return;
+    }
+    list.innerHTML = data.pointLogs.map(log => {
+      const isPositive = log.amount > 0;
+      const sign = isPositive ? '+' : '';
+      const timeStr = log.time.slice(0, 10) + ' ' + log.time.slice(11, 16);
+      return `
+        <div class="history-item" style="align-items:center;">
+          <div>
+            <div style="font-weight:500;">${log.reason}</div>
+            <div style="font-size:0.8rem;color:var(--text-dim);">${timeStr}</div>
+          </div>
+          <div style="font-weight:700;color:${isPositive ? 'var(--success)' : 'var(--text-dim)'};">
+            ${sign}${log.amount} 积分
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 绑定积分历史弹窗
+  const modalHistory = document.getElementById('modal-points-history');
+  document.getElementById('shop-points-display').addEventListener('click', () => {
+    renderPointsHistory();
+    modalHistory.style.display = 'flex';
+  });
+  document.getElementById('btn-close-history').addEventListener('click', () => {
+    modalHistory.style.display = 'none';
+  });
+
+  function renderShop() {
+    document.getElementById('shop-points-display').textContent = data.points;
+
+    // 渲染货架
+    const grid = document.getElementById('shop-grid');
+    if (data.shopItems.length === 0) {
+      grid.innerHTML = '<div class="empty-state">暂无商品</div>';
+    } else {
+      grid.innerHTML = data.shopItems.map(item => `
+        <div class="shop-item">
+          <div class="shop-item-icon">${item.icon}</div>
+          <div class="shop-item-name">${item.name}</div>
+          <button class="btn btn-sm btn-primary btn-block btn-buy" data-id="${item.id}" ${data.points < item.cost ? 'disabled' : ''}>
+            ${item.cost} 💎 兑换
+          </button>
+        </div>
+      `).join('');
+    }
+
+    grid.querySelectorAll('.btn-buy').forEach(btn => {
+      btn.addEventListener('click', () => {
+        buyItem(btn.dataset.id);
+      });
+    });
+
+    // 渲染已购
+    const invList = document.getElementById('inventory-list');
+    if (data.purchasedItems.length === 0) {
+      invList.innerHTML = '<p class="empty-state">暂无已购商品</p>';
+    } else {
+      invList.innerHTML = data.purchasedItems.map(p => `
+        <div class="reward-item">
+          <div class="reward-check" style="background:var(--primary);border-color:var(--primary);color:#fff">✓</div>
+          <div class="reward-info">
+            <span class="reward-name">${p.name}</span>
+            <span class="reward-goal">购买于 ${p.purchasedAt.slice(0, 10)}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  function buyItem(itemId) {
+    const item = data.shopItems.find(i => i.id === itemId);
+    if (!item) return;
+    if (data.points < item.cost) {
+      alert('积分不足！');
+      return;
+    }
+    if (!confirm(`确定花费 ${item.cost} 积分兑换「${item.name}」吗？`)) return;
+
+    addPoints(-item.cost, `兑换「${item.name}」`);
+    data.purchasedItems.unshift({
+      id: 'p_' + Date.now(),
+      originalId: item.id,
+      name: item.name,
+      purchasedAt: new Date().toISOString()
+    });
+    save(data);
+    renderShop();
+    alert('兑换成功！');
+  }
+
+  // 上架新愿望
+  const modalCreate = document.getElementById('modal-create-item');
+  document.getElementById('btn-create-item').addEventListener('click', () => {
+    document.getElementById('create-item-form').reset();
+    modalCreate.style.display = 'flex';
+  });
+  document.getElementById('btn-cancel-create').addEventListener('click', () => {
+    modalCreate.style.display = 'none';
+  });
+  document.getElementById('create-item-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = document.getElementById('item-name').value.trim();
+    const cost = parseInt(document.getElementById('item-cost').value, 10);
+    const icon = document.getElementById('item-icon').value.trim() || '🎁';
+
+    if (!name || !cost) return;
+
+    data.shopItems.push({
+      id: 'item_' + Date.now(),
+      name, cost, icon
+    });
+    save(data);
+    modalCreate.style.display = 'none';
+    renderShop();
   });
 
   /* ===== 初始化 ===== */

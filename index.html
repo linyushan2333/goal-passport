@@ -1,24 +1,27 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Goal Passport - 目标护照</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📕</text></svg>">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📕</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <!-- 导航栏 -->
   <nav class="navbar">
     <div class="nav-brand" data-navigate="dashboard">📕 Goal Passport</div>
-    
+
     <div class="nav-links">
       <button class="nav-btn active" data-navigate="dashboard">仪表盘</button>
       <button class="nav-btn" data-navigate="calendar">日历</button>
-      <button class="nav-btn" data-navigate="rewards">奖励墙</button>
       <button class="nav-btn" data-navigate="cards">卡牌图鉴</button>
+      <button class="nav-btn" data-navigate="shop">愿望商城</button>
     </div>
   </nav>
 
@@ -62,6 +65,12 @@
       </div>
       <div class="detail-progress glass" id="detail-progress-container"></div>
       <div class="detail-reward glass" id="detail-reward"></div>
+
+      <!-- 打卡备注 -->
+      <div class="checkin-note-container">
+        <input type="text" id="checkin-note-input" class="glass-input" placeholder="写一句备注（可选）...">
+      </div>
+
       <!-- 次数打卡 -->
       <div class="checkin-section" id="checkin-count" style="display:none;">
         <button class="btn btn-checkin" id="btn-checkin-count">打卡 +1</button>
@@ -99,11 +108,11 @@
         </div>
         <div class="form-group">
           <label for="goal-target">目标值 <span id="target-unit">（次）</span></label>
-          <input type="number" id="goal-target" min="1" value="30" required>
+          <input type="number" id="goal-target" min="1" value="21" required>
         </div>
         <div class="form-group">
-          <label for="goal-reward">自设奖励</label>
-          <input type="text" id="goal-reward" placeholder="例如：买一杯奶茶">
+          <label for="goal-reward-points">完成奖励积分</label>
+          <input type="number" id="goal-reward-points" value="100" min="0">
         </div>
         <input type="hidden" id="goal-edit-id" value="">
         <button type="submit" class="btn btn-primary btn-block">保存</button>
@@ -120,18 +129,28 @@
       <div class="calendar-weekdays">
         <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
       </div>
+      <!-- 财务概要 -->
+      <div id="cal-summary" class="cal-summary" style="display:none;">
+        <div class="cal-summary-item">
+          <span class="cal-summary-label">收入</span>
+          <span class="cal-summary-val text-income" id="cal-inc">0</span>
+        </div>
+        <div class="cal-summary-item">
+          <span class="cal-summary-label">支出</span>
+          <span class="cal-summary-val text-expense" id="cal-exp">0</span>
+        </div>
+        <div class="cal-summary-item">
+          <span class="cal-summary-label">结余</span>
+          <span class="cal-summary-val" id="cal-bal">0</span>
+        </div>
+      </div>
       <div class="calendar-grid" id="cal-grid"></div>
       <div class="calendar-detail glass" id="cal-detail">
         <p class="empty-state" style="padding:16px;">点击日期查看打卡记录</p>
       </div>
     </section>
 
-    <!-- 奖励墙 -->
-    <section id="view-rewards" class="view">
-      <h1>奖励墙</h1>
-      <p class="cards-subtitle">完成目标获得的奖励，兑现后打勾</p>
-      <div class="rewards-list" id="rewards-list"></div>
-    </section>
+
 
     <!-- 卡牌图鉴 -->
     <section id="view-cards" class="view">
@@ -139,6 +158,73 @@
       <p class="cards-subtitle">完成目标即可随机获得全球城市卡牌</p>
       <div class="cards-grid" id="cards-grid"></div>
     </section>
+
+    <!-- 愿望商城 -->
+    <section id="view-shop" class="view">
+      <div class="shop-header">
+        <div>
+          <h1>愿望商城</h1>
+          <p class="cards-subtitle">用积分为梦想买单</p>
+        </div>
+        <div class="points-display">
+          <span class="points-icon">💎</span>
+          <span class="points-value" id="shop-points-display">0</span>
+        </div>
+      </div>
+
+      <div class="shop-actions">
+        <button class="btn btn-primary btn-sm" id="btn-create-item">+ 上架愿望</button>
+      </div>
+
+      <div class="shop-shelf">
+        <h3>商品货架</h3>
+        <div class="shop-grid" id="shop-grid"></div>
+      </div>
+
+      <div class="shop-inventory">
+        <h3>已购愿望</h3>
+        <div class="inventory-list" id="inventory-list">
+          <p class="empty-state">暂无已购商品</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 积分明细弹窗 -->
+    <div class="modal-overlay" id="modal-points-history" style="display:none;">
+      <div class="modal-content" style="max-height:80vh;display:flex;flex-direction:column;">
+        <h2 style="margin-bottom:16px;">积分账单</h2>
+        <div id="points-history-list"
+          style="overflow-y:auto;flex:1;text-align:left;display:flex;flex-direction:column;gap:8px;">
+          <!-- 动态生成 -->
+        </div>
+        <button class="btn btn-primary btn-block" id="btn-close-history" style="margin-top:16px;">关闭</button>
+      </div>
+    </div>
+
+    <!-- 上架愿望弹窗 -->
+    <div class="modal-overlay" id="modal-create-item" style="display:none;">
+      <div class="modal-content" style="text-align:left;">
+        <h2 style="margin-bottom:16px;text-align:center;">上架新愿望</h2>
+        <form id="create-item-form">
+          <div class="form-group">
+            <label>愿望名称</label>
+            <input type="text" id="item-name" placeholder="例如：看一场电影" required>
+          </div>
+          <div class="form-group">
+            <label>兑换积分</label>
+            <input type="number" id="item-cost" value="100" min="10" required>
+          </div>
+          <div class="form-group">
+            <label>图标 (Emoji)</label>
+            <input type="text" id="item-icon" value="🎁" placeholder="输入一个 Emoji" maxlength="4">
+          </div>
+          <div class="form-actions" style="display:flex;gap:10px;margin-top:20px;">
+            <button type="button" class="btn btn-block" id="btn-cancel-create">取消</button>
+            <button type="submit" class="btn btn-primary btn-block">上架</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </main>
 
   <!-- 卡牌揭晓弹窗 -->
@@ -169,4 +255,5 @@
   <script src="charts.js"></script>
   <script src="app.js"></script>
 </body>
+
 </html>
