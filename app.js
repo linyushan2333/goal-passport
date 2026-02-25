@@ -34,7 +34,9 @@
       if (!d.shopItems) d.shopItems = defaultData().shopItems;
       if (!d.purchasedItems) d.purchasedItems = [];
       if (!d.pointLogs) d.pointLogs = [];
-      // 移除 old claimedRewards check
+      // 兼容旧数据：确保 goals 和 shopItems 有 deleted 字段
+      (d.goals || []).forEach(g => { if (g.deleted === undefined) g.deleted = false; });
+      (d.shopItems || []).forEach(i => { if (i.deleted === undefined) i.deleted = false; });
       return d;
     } catch { return defaultData(); }
   }
@@ -74,10 +76,13 @@
 
   function renderDashboard() {
     const list = document.getElementById('goals-list');
-    if (data.goals.length === 0) {
+    const activeGoals = data.goals.filter(g => !g.deleted);
+    const archivedGoals = data.goals.filter(g => g.deleted);
+
+    if (activeGoals.length === 0) {
       list.innerHTML = '<div class="empty-state"><p>还没有目标，点击上方按钮创建一个吧！</p></div>';
     } else {
-      list.innerHTML = data.goals.map(g => {
+      list.innerHTML = activeGoals.map(g => {
         const cur = getProgress(g);
         const unit = g.type === 'time' ? '分钟' : '次';
         const badge = g.completed
@@ -97,18 +102,71 @@
         });
       });
     }
-    // 环形图
-    const completed = data.goals.filter(g => g.completed).length;
-    const total = data.goals.length;
+
+    // ===== 已归档折叠区 =====
+    const archSection = document.getElementById('archived-section');
+    const archList = document.getElementById('archived-list');
+    const archCount = document.getElementById('archived-count');
+    if (archivedGoals.length === 0) {
+      archSection.style.display = 'none';
+    } else {
+      archSection.style.display = '';
+      archCount.textContent = archivedGoals.length;
+      archList.innerHTML = archivedGoals.map(g => {
+        const cur = getProgress(g);
+        const unit = g.type === 'time' ? '分钟' : '次';
+        const deletedAt = g.deletedAt ? g.deletedAt.slice(0, 10) : '';
+        const statusBadge = g.completed
+          ? '<span class="goal-card-badge completed">已完成</span>'
+          : `<span class="goal-card-badge">${cur}/${g.target}${unit}</span>`;
+        return `<div class="goal-card goal-card-archived" data-goal-id="${g.id}">
+          <div class="goal-card-header">
+            <span class="goal-card-name">${g.name}</span>${statusBadge}
+          </div>
+          ${Charts.createProgressBar(cur, g.target)}
+          <div class="archived-meta">📦 归档于 ${deletedAt}</div>
+        </div>`;
+      }).join('');
+      archList.querySelectorAll('.goal-card-archived').forEach(el => {
+        el.addEventListener('click', () => {
+          currentGoalId = el.dataset.goalId;
+          navigate('detail');
+        });
+      });
+    }
+
+    // 环形图（只计算活跃目标）
+    const completed = activeGoals.filter(g => g.completed).length;
+    const total = activeGoals.length;
     const rate = total ? Math.round((completed / total) * 100) : 0;
     document.getElementById('overall-chart').innerHTML = Charts.createDonut(rate);
     document.getElementById('overall-rate').textContent = rate + '%';
   }
 
+  // 归档折叠展开
+  document.getElementById('btn-toggle-archived').addEventListener('click', () => {
+    const archList = document.getElementById('archived-list');
+    const chevron = document.getElementById('archived-chevron');
+    const isOpen = archList.style.display !== 'none';
+    archList.style.display = isOpen ? 'none' : '';
+    chevron.textContent = isOpen ? '▶' : '▼';
+  });
+
   /* ===== 目标详情 ===== */
   function renderDetail() {
     const goal = data.goals.find(g => g.id === currentGoalId);
     if (!goal) { navigate('dashboard'); return; }
+    // 已归档目标：按钮文字变「取消归档」
+    const deleteBtn = document.getElementById('btn-delete-goal');
+    if (goal.deleted) {
+      deleteBtn.textContent = '取消归档';
+      deleteBtn.classList.remove('btn-danger');
+      deleteBtn.classList.add('btn-restore');
+    } else {
+      deleteBtn.textContent = '归档';
+      deleteBtn.classList.remove('btn-restore');
+      deleteBtn.classList.add('btn-danger');
+    }
     document.getElementById('detail-name').textContent = goal.name;
     const cur = getProgress(goal);
     const unit = goal.type === 'time' ? '分钟' : '次';
@@ -143,16 +201,40 @@
       historyEl.innerHTML = checkins.map(c => {
         const val = goal.type === 'time' ? c.value + ' 分钟' : '+' + c.value;
         const noteHtml = c.note ? `<div class="history-note">${c.note}</div>` : '';
-        return `<div class="history-item">
-          <div>
+        return `<div class="history-item" data-checkin-id="${c.id}">
+          <div style="flex:1;">
             <div style="display:flex;justify-content:space-between;">
               <span>${c.date}</span>
               <span>${val}</span>
             </div>
             ${noteHtml}
           </div>
+          <button class="btn-delete-checkin" data-id="${c.id}" title="删除此条记录">×</button>
         </div>`;
       }).join('');
+
+      // 绑定删除打卡记录
+      historyEl.querySelectorAll('.btn-delete-checkin').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const checkinId = btn.dataset.id;
+          const checkin = data.checkins.find(c => c.id === checkinId);
+          if (!checkin) return;
+          const valLabel = goal.type === 'time' ? checkin.value + ' 分钟' : '+' + checkin.value;
+          if (!confirm(`删除「${checkin.date} ${valLabel}」这条打卡记录？`)) return;
+          // 删除记录
+          data.checkins = data.checkins.filter(c => c.id !== checkinId);
+          // 如果目标已完成但删除后进度不足，重置完成状态
+          if (goal.completed) {
+            const newProgress = getProgress(goal);
+            if (newProgress < goal.target) {
+              goal.completed = false;
+              goal.completedAt = null;
+            }
+          }
+          save(data);
+          renderDetail();
+        });
+      });
     }
   }
   /* ===== 次数打卡 ===== */
@@ -382,15 +464,28 @@
     navigate('dashboard');
   });
 
-  /* ===== 删除目标 ===== */
+  /* ===== 归档 / 取消归档目标（软删除，保留所有记录） ===== */
   document.getElementById('btn-delete-goal').addEventListener('click', () => {
-    if (!confirm('确定删除此目标及其所有打卡记录？')) return;
-    data.goals = data.goals.filter(g => g.id !== currentGoalId);
-    data.checkins = data.checkins.filter(c => c.goalId !== currentGoalId);
-    if (data.timerState.goalId === currentGoalId) {
-      data.timerState = { goalId: null, startedAt: null, accumulatedMs: 0, isRunning: false };
-      clearInterval(timerInterval);
+    const goal = data.goals.find(g => g.id === currentGoalId);
+    if (!goal) return;
+
+    if (goal.deleted) {
+      // 取消归档：恢复
+      if (!confirm(`取消归档「${goal.name}」，将重新出现在仪表盘？`)) return;
+      goal.deleted = false;
+      goal.deletedAt = null;
+    } else {
+      // 归档：软删除，不清除任何打卡/积分记录
+      if (!confirm(`归档「${goal.name}」？打卡记录将保留，可随时取消归档。`)) return;
+      goal.deleted = true;
+      goal.deletedAt = new Date().toISOString();
+      // 若计时器正在运行，停止
+      if (data.timerState.goalId === currentGoalId) {
+        data.timerState = { goalId: null, startedAt: null, accumulatedMs: 0, isRunning: false };
+        clearInterval(timerInterval);
+      }
     }
+
     save(data);
     navigate('dashboard');
   });
@@ -727,26 +822,63 @@
   function renderShop() {
     document.getElementById('shop-points-display').textContent = data.points;
 
-    // 渲染货架
+    // 渲染货架（过滤已下架）
     const grid = document.getElementById('shop-grid');
-    if (data.shopItems.length === 0) {
-      grid.innerHTML = '<div class="empty-state">暂无商品</div>';
+    const activeItems = data.shopItems.filter(i => !i.deleted);
+    const archivedItems = data.shopItems.filter(i => i.deleted);
+
+    if (activeItems.length === 0) {
+      grid.innerHTML = '<div class="empty-state">暂无商品，快去上架愿望吧！</div>';
     } else {
-      grid.innerHTML = data.shopItems.map(item => `
+      grid.innerHTML = activeItems.map(item => `
         <div class="shop-item">
           <div class="shop-item-icon">${item.icon}</div>
           <div class="shop-item-name">${item.name}</div>
           <button class="btn btn-sm btn-primary btn-block btn-buy" data-id="${item.id}" ${data.points < item.cost ? 'disabled' : ''}>
             ${item.cost} 💎 兑换
           </button>
+          <button class="btn btn-sm btn-block btn-delist" data-id="${item.id}" style="margin-top:6px;opacity:0.6;font-size:0.75rem;">
+            下架
+          </button>
         </div>
       `).join('');
     }
 
     grid.querySelectorAll('.btn-buy').forEach(btn => {
-      btn.addEventListener('click', () => {
-        buyItem(btn.dataset.id);
-      });
+      btn.addEventListener('click', () => buyItem(btn.dataset.id));
+    });
+    grid.querySelectorAll('.btn-delist').forEach(btn => {
+      btn.addEventListener('click', () => delistItem(btn.dataset.id));
+    });
+
+    // 已下架区——使用固定容器避免重复插入
+    let delistContainer = document.getElementById('shop-delist-container');
+    if (!delistContainer) {
+      delistContainer = document.createElement('div');
+      delistContainer.id = 'shop-delist-container';
+      grid.insertAdjacentElement('afterend', delistContainer);
+    }
+    if (archivedItems.length > 0) {
+      delistContainer.innerHTML = `<details class="delist-archive" style="margin-top:16px;">
+        <summary>📦 已下架愿望 (${archivedItems.length})</summary>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;">
+          ${archivedItems.map(item => `
+            <div class="shop-item shop-item-archived">
+              <div class="shop-item-icon" style="opacity:0.5;">${item.icon}</div>
+              <div class="shop-item-name" style="opacity:0.5;">${item.name}</div>
+              <button class="btn btn-sm btn-block btn-relist" data-id="${item.id}" style="font-size:0.75rem;margin-top:6px;">
+                重新上架
+              </button>
+            </div>
+          `).join('')}
+        </div>
+      </details>`;
+    } else {
+      delistContainer.innerHTML = '';
+    }
+
+    delistContainer.querySelectorAll('.btn-relist').forEach(btn => {
+      btn.addEventListener('click', () => relistItem(btn.dataset.id));
     });
 
     // 渲染已购
@@ -764,6 +896,25 @@
         </div>
       `).join('');
     }
+  }
+
+  function delistItem(itemId) {
+    const item = data.shopItems.find(i => i.id === itemId);
+    if (!item) return;
+    if (!confirm(`下架「${item.name}」？下架后不影响已购买记录，可随时重新上架。`)) return;
+    item.deleted = true;
+    item.deletedAt = new Date().toISOString();
+    save(data);
+    renderShop();
+  }
+
+  function relistItem(itemId) {
+    const item = data.shopItems.find(i => i.id === itemId);
+    if (!item) return;
+    item.deleted = false;
+    item.deletedAt = null;
+    save(data);
+    renderShop();
   }
 
   function buyItem(itemId) {

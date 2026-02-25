@@ -51,6 +51,16 @@
         </div>
       </div>
       <div class="goals-list" id="goals-list"></div>
+
+      <!-- 已归档目标折叠区 -->
+      <div class="archived-section" id="archived-section" style="display:none;">
+        <button class="archived-toggle" id="btn-toggle-archived">
+          <span>📦 已归档目标</span>
+          <span class="archived-count" id="archived-count">0</span>
+          <span class="archived-chevron" id="archived-chevron">▶</span>
+        </button>
+        <div class="archived-list" id="archived-list" style="display:none;"></div>
+      </div>
     </section>
 
     <!-- 目标详情 -->
@@ -60,7 +70,7 @@
         <h1 id="detail-name"></h1>
         <div class="detail-actions">
           <button class="btn btn-sm" id="btn-edit-goal">编辑</button>
-          <button class="btn btn-sm btn-danger" id="btn-delete-goal">删除</button>
+          <button class="btn btn-sm btn-danger" id="btn-delete-goal">归档</button>
         </div>
       </div>
       <div class="detail-progress glass" id="detail-progress-container"></div>

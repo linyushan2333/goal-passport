@@ -453,12 +453,34 @@ body {
 
 .history-item {
   display: flex;
+  align-items: flex-start;
+  gap: 10px;
   justify-content: space-between;
   padding: 10px 16px;
   border-radius: var(--radius-sm);
   background: var(--glass);
   border: 1px solid var(--glass-border);
   font-size: .85rem;
+}
+
+.btn-delete-checkin {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 4px;
+  transition: .15s;
+  opacity: 0.4;
+}
+
+.btn-delete-checkin:hover {
+  color: var(--danger);
+  opacity: 1;
+  background: rgba(231, 76, 60, 0.12);
 }
 
 /* ===== 表单 ===== */
@@ -1119,4 +1141,103 @@ body {
 
 .form-actions .btn {
   flex: 1;
+}
+
+/* ===== 归档区折叠 ===== */
+.archived-section {
+  margin-top: 24px;
+}
+
+.archived-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.9rem;
+  transition: .2s;
+}
+
+.archived-toggle:hover {
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.archived-count {
+  background: var(--surface2);
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.archived-chevron {
+  margin-left: auto;
+  font-size: 0.75rem;
+  transition: .2s;
+}
+
+.archived-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* 已归档目标卡：半透明、去色 */
+.goal-card-archived {
+  opacity: 0.6;
+  filter: grayscale(0.4);
+  border-style: dashed !important;
+}
+
+.goal-card-archived:hover {
+  opacity: 0.85;
+  filter: none;
+}
+
+.archived-meta {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* 取消归档按钮（绿色调） */
+.btn-restore {
+  background: #27ae60;
+}
+
+.btn-restore:hover {
+  filter: brightness(1.2);
+}
+
+/* 商城已下架商品 */
+.shop-item-archived {
+  opacity: 0.55;
+  filter: grayscale(0.5);
+  border-style: dashed !important;
+}
+
+.shop-item-archived:hover {
+  opacity: 0.8;
+  filter: none;
+  border-color: var(--primary) !important;
+}
+
+.delist-archive summary {
+  padding: 8px 0;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.delist-archive summary::-webkit-details-marker {
+  display: none;
 }
