@@ -47,6 +47,36 @@
 
   let data = load();
 
+  /* ===== 每日自动备份 ===== */
+  (function dailyAutoBackup() {
+    const BACKUP_KEY = 'goalPassport_lastBackupDate';
+    const today = new Date().toISOString().slice(0, 10);
+    const lastBackup = localStorage.getItem(BACKUP_KEY);
+
+    // 有数据且今天还没备份过
+    if (data.goals.length > 0 && lastBackup !== today) {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'goal-passport-backup-' + today + '.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+
+      localStorage.setItem(BACKUP_KEY, today);
+
+      // 显示提示条
+      const toast = document.createElement('div');
+      toast.className = 'backup-toast';
+      toast.innerHTML = '💾 今日数据已自动备份到下载文件夹';
+      document.body.appendChild(toast);
+      setTimeout(() => { toast.classList.add('show'); }, 100);
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 400);
+      }, 4000);
+    }
+  })();
+
   /* ===== 视图路由 ===== */
   let currentGoalId = null;
 
