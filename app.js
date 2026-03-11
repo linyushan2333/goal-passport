@@ -185,6 +185,9 @@
     countSection.style.display = goal.type === 'count' && !goal.completed ? '' : 'none';
     timeSection.style.display = goal.type === 'time' && !goal.completed ? '' : 'none';
 
+    // 手动补录按钮：未完成的目标才显示
+    document.getElementById('manual-add-section').style.display = !goal.completed ? '' : 'none';
+
     // 恢复计时器状态
     if (goal.type === 'time' && data.timerState.goalId === goal.id && data.timerState.isRunning) {
       resumeTimer();
@@ -374,6 +377,90 @@
   document.getElementById('btn-timer-start').addEventListener('click', startTimer);
   document.getElementById('btn-timer-pause').addEventListener('click', pauseTimer);
   document.getElementById('btn-timer-stop').addEventListener('click', stopTimer);
+
+  /* ===== 手动补录 ===== */
+  document.getElementById('btn-manual-add').addEventListener('click', () => {
+    const goal = data.goals.find(g => g.id === currentGoalId);
+    if (!goal || goal.completed) return;
+
+    const modal = document.getElementById('modal-manual-add');
+    const form = document.getElementById('manual-add-form');
+    form.reset();
+
+    // 默认日期为昨天
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    document.getElementById('manual-add-date').value = yesterday.toISOString().slice(0, 10);
+
+    // 根据目标类型显示对应输入
+    const hoursGroup = document.getElementById('manual-add-hours-group');
+    const countGroup = document.getElementById('manual-add-count-group');
+    if (goal.type === 'time') {
+      hoursGroup.style.display = '';
+      countGroup.style.display = 'none';
+      document.getElementById('manual-add-hours').value = 1;
+      document.getElementById('manual-add-hours-hint').textContent = '= 60 分钟';
+    } else {
+      hoursGroup.style.display = 'none';
+      countGroup.style.display = '';
+      document.getElementById('manual-add-count').value = 1;
+    }
+
+    modal.style.display = 'flex';
+  });
+
+  // 实时更新分钟提示
+  document.getElementById('manual-add-hours').addEventListener('input', (e) => {
+    const hours = parseFloat(e.target.value) || 0;
+    const minutes = Math.round(hours * 60);
+    document.getElementById('manual-add-hours-hint').textContent = `= ${minutes} 分钟`;
+  });
+
+  // 取消
+  document.getElementById('btn-cancel-manual-add').addEventListener('click', () => {
+    document.getElementById('modal-manual-add').style.display = 'none';
+  });
+
+  // 提交补录
+  document.getElementById('manual-add-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const goal = data.goals.find(g => g.id === currentGoalId);
+    if (!goal || goal.completed) return;
+
+    const dateStr = document.getElementById('manual-add-date').value;
+    if (!dateStr) { alert('请选择日期'); return; }
+
+    let value;
+    if (goal.type === 'time') {
+      const hours = parseFloat(document.getElementById('manual-add-hours').value);
+      if (!hours || hours <= 0) { alert('请输入有效的小时数'); return; }
+      value = Math.round(hours * 60); // 转换为分钟
+    } else {
+      value = parseInt(document.getElementById('manual-add-count').value, 10);
+      if (!value || value <= 0) { alert('请输入有效的次数'); return; }
+    }
+
+    const note = document.getElementById('manual-add-note').value.trim();
+    const noteText = note ? note + ' (手动补录)' : '(手动补录)';
+
+    data.checkins.push({
+      id: 'c_' + Date.now(),
+      goalId: goal.id,
+      date: dateStr,
+      value: value,
+      note: noteText,
+      timestamp: new Date().toISOString()
+    });
+
+    // 增加积分
+    addPoints(10, '手动补录');
+
+    checkCompletion(goal);
+    save(data);
+
+    document.getElementById('modal-manual-add').style.display = 'none';
+    renderDetail();
+  });
 
   /* ===== 目标完成检测 ===== */
   function checkCompletion(goal) {

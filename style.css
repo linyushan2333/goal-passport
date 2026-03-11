@@ -435,6 +435,42 @@ body {
   gap: 12px;
 }
 
+/* ===== 手动补录 ===== */
+.manual-add-section {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 4px;
+}
+
+.btn-manual-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border: 1px dashed var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: .2s;
+}
+
+.btn-manual-add:hover {
+  color: var(--primary-light);
+  border-color: var(--primary);
+  background: rgba(108, 92, 231, 0.08);
+}
+
+.manual-add-hint {
+  font-size: .78rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+  padding-left: 2px;
+  transition: .2s;
+}
+
 /* ===== 历史记录 ===== */
 .history-section {
   margin-top: 24px;

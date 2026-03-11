@@ -94,6 +94,10 @@
           <button class="btn btn-danger" id="btn-timer-stop" disabled>停止并记录</button>
         </div>
       </div>
+      <!-- 手动补录按钮 -->
+      <div class="manual-add-section" id="manual-add-section" style="display:none;">
+        <button class="btn btn-manual-add" id="btn-manual-add">📝 手动补录</button>
+      </div>
       <div class="history-section">
         <h3>打卡记录</h3>
         <div class="history-list" id="history-list"></div>
@@ -231,6 +235,36 @@
           <div class="form-actions" style="display:flex;gap:10px;margin-top:20px;">
             <button type="button" class="btn btn-block" id="btn-cancel-create">取消</button>
             <button type="submit" class="btn btn-primary btn-block">上架</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 手动补录弹窗 -->
+    <div class="modal-overlay" id="modal-manual-add" style="display:none;">
+      <div class="modal-content" style="text-align:left;">
+        <h2 style="margin-bottom:16px;text-align:center;">📝 手动补录</h2>
+        <form id="manual-add-form">
+          <div class="form-group">
+            <label>选择日期</label>
+            <input type="date" id="manual-add-date" required>
+          </div>
+          <div class="form-group" id="manual-add-hours-group">
+            <label>时长（小时）</label>
+            <input type="number" id="manual-add-hours" min="0.5" step="0.5" value="1" required>
+            <div class="manual-add-hint" id="manual-add-hours-hint">= 60 分钟</div>
+          </div>
+          <div class="form-group" id="manual-add-count-group" style="display:none;">
+            <label>次数</label>
+            <input type="number" id="manual-add-count" min="1" step="1" value="1" required>
+          </div>
+          <div class="form-group">
+            <label>备注（可选）</label>
+            <input type="text" id="manual-add-note" class="glass-input" placeholder="例如：昨天忘记记录了">
+          </div>
+          <div class="form-actions" style="display:flex;gap:10px;margin-top:20px;">
+            <button type="button" class="btn btn-block" id="btn-cancel-manual-add">取消</button>
+            <button type="submit" class="btn btn-primary btn-block">确认补录</button>
           </div>
         </form>
       </div>
