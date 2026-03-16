@@ -423,27 +423,19 @@
     document.getElementById('manual-add-date').value = yesterday.toISOString().slice(0, 10);
 
     // 根据目标类型显示对应输入
-    const hoursGroup = document.getElementById('manual-add-hours-group');
+    const minutesGroup = document.getElementById('manual-add-minutes-group');
     const countGroup = document.getElementById('manual-add-count-group');
     if (goal.type === 'time') {
-      hoursGroup.style.display = '';
+      minutesGroup.style.display = '';
       countGroup.style.display = 'none';
-      document.getElementById('manual-add-hours').value = 1;
-      document.getElementById('manual-add-hours-hint').textContent = '= 60 分钟';
+      document.getElementById('manual-add-minutes').value = 60;
     } else {
-      hoursGroup.style.display = 'none';
+      minutesGroup.style.display = 'none';
       countGroup.style.display = '';
       document.getElementById('manual-add-count').value = 1;
     }
 
     modal.style.display = 'flex';
-  });
-
-  // 实时更新分钟提示
-  document.getElementById('manual-add-hours').addEventListener('input', (e) => {
-    const hours = parseFloat(e.target.value) || 0;
-    const minutes = Math.round(hours * 60);
-    document.getElementById('manual-add-hours-hint').textContent = `= ${minutes} 分钟`;
   });
 
   // 取消
@@ -462,9 +454,8 @@
 
     let value;
     if (goal.type === 'time') {
-      const hours = parseFloat(document.getElementById('manual-add-hours').value);
-      if (!hours || hours <= 0) { alert('请输入有效的小时数'); return; }
-      value = Math.round(hours * 60); // 转换为分钟
+      value = parseInt(document.getElementById('manual-add-minutes').value, 10);
+      if (!value || value <= 0) { alert('请输入有效的分钟数'); return; }
     } else {
       value = parseInt(document.getElementById('manual-add-count').value, 10);
       if (!value || value <= 0) { alert('请输入有效的次数'); return; }
